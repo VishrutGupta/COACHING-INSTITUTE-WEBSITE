@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, handleApiError, jsonError } from "@/lib/server/api";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { PERMISSIONS, ALL_PERMISSIONS } from "@/lib/constants/permissions";
+import { PERMISSIONS, ALL_PERMISSIONS, defaultPermissionsForRole } from "@/lib/constants/permissions";
 import { auditLog } from "@/lib/server/auditLog";
 import type { Role } from "@/lib/types";
 
@@ -67,7 +67,9 @@ export async function POST(request: NextRequest) {
     const email = (body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
     const role = String(body.role || "");
-    const permissions: string[] = Array.isArray(body.permissions) ? body.permissions : [];
+    const requestedPermissions: string[] | null = Array.isArray(body.permissions)
+      ? body.permissions.map(String)
+      : null;
 
     if (!fullName || !username || !email || !password) {
       return jsonError("Full name, username, email and password are required.", 400);
@@ -88,12 +90,15 @@ export async function POST(request: NextRequest) {
       return jsonError("Role must be admin or staff.", 400);
     }
 
-    const invalidPermission = permissions.find(
+    const invalidPermission = requestedPermissions?.find(
       (permission) => !(ALL_PERMISSIONS as string[]).includes(permission)
     );
     if (invalidPermission) {
       return jsonError(`Unknown permission: ${invalidPermission}`, 400);
     }
+
+    // Explicit grants win; otherwise seed the account with its role defaults.
+    const permissions = requestedPermissions ?? defaultPermissionsForRole(role);
 
     const admin = getSupabaseAdmin();
 
@@ -150,7 +155,7 @@ export async function POST(request: NextRequest) {
       instituteId: user.instituteId,
       actorUserId: user.id,
       actorUsername: user.username,
-      action: "USER_CREATE",
+      action: "user.create",
       resourceType: "User",
       resourceId: created.user.id,
       description: `Created ${role} account "${username}"`,
@@ -159,7 +164,7 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         email,
         role,
-        permissions,
+        permissions: [...permissions].sort(),
       },
     });
 

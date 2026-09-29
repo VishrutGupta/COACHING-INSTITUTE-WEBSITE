@@ -5,13 +5,22 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BookOpen,
+  Boxes,
+  CalendarDays,
+  CircleHelp,
   GraduationCap,
+  Images,
+  Inbox,
   LayoutDashboard,
   Layers,
   LogOut,
+  MapPin,
+  Megaphone,
   Menu,
+  Quote,
   ScrollText,
   Settings,
+  Trophy,
   Users,
   X,
 } from "lucide-react";
@@ -28,6 +37,15 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard, permission: PERMISSIONS.DASHBOARD_VIEW },
+  { label: "Batches", href: "/admin/batches", icon: Boxes, permission: PERMISSIONS.BATCHES_VIEW },
+  { label: "Schedule", href: "/admin/schedule", icon: CalendarDays, permission: PERMISSIONS.SCHEDULE_VIEW },
+  { label: "Enquiries", href: "/admin/enquiries", icon: Inbox, permission: PERMISSIONS.ENQUIRIES_VIEW },
+  { label: "Results", href: "/admin/results", icon: Trophy, permission: PERMISSIONS.RESULTS_VIEW },
+  { label: "Announcements", href: "/admin/announcements", icon: Megaphone, permission: PERMISSIONS.ANNOUNCEMENTS_VIEW },
+  { label: "Gallery", href: "/admin/gallery", icon: Images, permission: PERMISSIONS.GALLERY_VIEW },
+  { label: "Testimonials", href: "/admin/testimonials", icon: Quote, permission: PERMISSIONS.TESTIMONIALS_VIEW },
+  { label: "FAQ", href: "/admin/faq", icon: CircleHelp, permission: PERMISSIONS.FAQ_VIEW },
+  { label: "Branches", href: "/admin/branches", icon: MapPin, permission: PERMISSIONS.BRANCHES_VIEW },
   { label: "Courses", href: "/admin/courses", icon: BookOpen, permission: PERMISSIONS.COURSES_VIEW },
   { label: "Faculty", href: "/admin/faculty", icon: GraduationCap, permission: PERMISSIONS.FACULTY_VIEW },
   { label: "Subjects", href: "/admin/subjects", icon: Layers, permission: PERMISSIONS.SUBJECTS_VIEW },

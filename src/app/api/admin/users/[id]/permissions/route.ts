@@ -113,7 +113,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
         instituteId: actor.instituteId,
         actorUserId: actor.id,
         actorUsername: actor.username,
-        action: "USER_UPDATE",
+        action: "user.permissions",
         resourceType: "UserPermission",
         resourceId: id,
         description: `Updated permissions for "${profile.username}" (${requested.length} granted)`,

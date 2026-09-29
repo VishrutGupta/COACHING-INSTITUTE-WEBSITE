@@ -9,7 +9,11 @@ import { Menu, X, GraduationCap } from "lucide-react";
 const LINKS = [
   { href: "/", label: "Home" },
   { href: "/courses", label: "Courses" },
+  { href: "/batches", label: "Batches" },
+  { href: "/schedule", label: "Schedule" },
   { href: "/faculty", label: "Faculty" },
+  { href: "/results", label: "Results" },
+  { href: "/announcements", label: "Notices" },
   { href: "/testimonials", label: "Testimonials" },
   { href: "/faq", label: "FAQ" },
   { href: "/gallery", label: "Gallery" },
@@ -52,7 +56,7 @@ export function Navbar({ name, logoUrl }: Props) {
           <span className="truncate text-base font-semibold text-slate-900">{name}</span>
         </Link>
 
-        <div className="hidden items-center gap-1 lg:flex">
+        <div className="hidden items-center gap-0.5 xl:flex">
           {LINKS.map((link) => {
             const active =
               link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
@@ -60,7 +64,7 @@ export function Navbar({ name, logoUrl }: Props) {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-full px-3 py-2 text-sm font-medium transition ${
+                className={`rounded-full px-2.5 py-2 text-sm font-medium transition ${
                   active
                     ? "bg-[var(--accent,#2563eb)]/10 text-[var(--accent,#2563eb)]"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -82,7 +86,7 @@ export function Navbar({ name, logoUrl }: Props) {
           <button
             type="button"
             onClick={() => setOpen((value) => !value)}
-            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
+            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 xl:hidden"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
           >
@@ -92,7 +96,7 @@ export function Navbar({ name, logoUrl }: Props) {
       </nav>
 
       {open && (
-        <div className="border-t border-slate-200 bg-white lg:hidden">
+        <div className="border-t border-slate-200 bg-white xl:hidden">
           <div className="container-site grid gap-1 py-3">
             {LINKS.map((link) => (
               <Link

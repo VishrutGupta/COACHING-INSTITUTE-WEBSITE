@@ -11,7 +11,11 @@ import type { Institute } from "@/lib/types";
 
 const QUICK_LINKS = [
   { href: "/courses", label: "Courses" },
+  { href: "/batches", label: "Batches" },
+  { href: "/schedule", label: "Class schedule" },
   { href: "/faculty", label: "Faculty" },
+  { href: "/results", label: "Results" },
+  { href: "/announcements", label: "Announcements" },
   { href: "/about", label: "About us" },
   { href: "/gallery", label: "Gallery" },
   { href: "/testimonials", label: "Testimonials" },

@@ -16,6 +16,50 @@ export const PERMISSIONS = {
   SUBJECTS_EDIT: "subjects.edit",
   SUBJECTS_DELETE: "subjects.delete",
 
+  BATCHES_VIEW: "batches.view",
+  BATCHES_CREATE: "batches.create",
+  BATCHES_EDIT: "batches.edit",
+  BATCHES_DELETE: "batches.delete",
+
+  SCHEDULE_VIEW: "schedule.view",
+  SCHEDULE_CREATE: "schedule.create",
+  SCHEDULE_EDIT: "schedule.edit",
+  SCHEDULE_DELETE: "schedule.delete",
+
+  RESULTS_VIEW: "results.view",
+  RESULTS_CREATE: "results.create",
+  RESULTS_EDIT: "results.edit",
+  RESULTS_DELETE: "results.delete",
+
+  ENQUIRIES_VIEW: "enquiries.view",
+  ENQUIRIES_CREATE: "enquiries.create",
+  ENQUIRIES_EDIT: "enquiries.edit",
+  ENQUIRIES_DELETE: "enquiries.delete",
+
+  ANNOUNCEMENTS_VIEW: "announcements.view",
+  ANNOUNCEMENTS_CREATE: "announcements.create",
+  ANNOUNCEMENTS_EDIT: "announcements.edit",
+  ANNOUNCEMENTS_DELETE: "announcements.delete",
+
+  GALLERY_VIEW: "gallery.view",
+  GALLERY_UPLOAD: "gallery.upload",
+  GALLERY_DELETE: "gallery.delete",
+
+  TESTIMONIALS_VIEW: "testimonials.view",
+  TESTIMONIALS_CREATE: "testimonials.create",
+  TESTIMONIALS_EDIT: "testimonials.edit",
+  TESTIMONIALS_DELETE: "testimonials.delete",
+
+  FAQ_VIEW: "faq.view",
+  FAQ_CREATE: "faq.create",
+  FAQ_EDIT: "faq.edit",
+  FAQ_DELETE: "faq.delete",
+
+  BRANCHES_VIEW: "branches.view",
+  BRANCHES_CREATE: "branches.create",
+  BRANCHES_EDIT: "branches.edit",
+  BRANCHES_DELETE: "branches.delete",
+
   SETTINGS_VIEW: "settings.view",
   SETTINGS_EDIT: "settings.edit",
 
@@ -49,6 +93,50 @@ export const ALL_PERMISSIONS: Permission[] = [
   PERMISSIONS.SUBJECTS_EDIT,
   PERMISSIONS.SUBJECTS_DELETE,
 
+  PERMISSIONS.BATCHES_VIEW,
+  PERMISSIONS.BATCHES_CREATE,
+  PERMISSIONS.BATCHES_EDIT,
+  PERMISSIONS.BATCHES_DELETE,
+
+  PERMISSIONS.SCHEDULE_VIEW,
+  PERMISSIONS.SCHEDULE_CREATE,
+  PERMISSIONS.SCHEDULE_EDIT,
+  PERMISSIONS.SCHEDULE_DELETE,
+
+  PERMISSIONS.RESULTS_VIEW,
+  PERMISSIONS.RESULTS_CREATE,
+  PERMISSIONS.RESULTS_EDIT,
+  PERMISSIONS.RESULTS_DELETE,
+
+  PERMISSIONS.ENQUIRIES_VIEW,
+  PERMISSIONS.ENQUIRIES_CREATE,
+  PERMISSIONS.ENQUIRIES_EDIT,
+  PERMISSIONS.ENQUIRIES_DELETE,
+
+  PERMISSIONS.ANNOUNCEMENTS_VIEW,
+  PERMISSIONS.ANNOUNCEMENTS_CREATE,
+  PERMISSIONS.ANNOUNCEMENTS_EDIT,
+  PERMISSIONS.ANNOUNCEMENTS_DELETE,
+
+  PERMISSIONS.GALLERY_VIEW,
+  PERMISSIONS.GALLERY_UPLOAD,
+  PERMISSIONS.GALLERY_DELETE,
+
+  PERMISSIONS.TESTIMONIALS_VIEW,
+  PERMISSIONS.TESTIMONIALS_CREATE,
+  PERMISSIONS.TESTIMONIALS_EDIT,
+  PERMISSIONS.TESTIMONIALS_DELETE,
+
+  PERMISSIONS.FAQ_VIEW,
+  PERMISSIONS.FAQ_CREATE,
+  PERMISSIONS.FAQ_EDIT,
+  PERMISSIONS.FAQ_DELETE,
+
+  PERMISSIONS.BRANCHES_VIEW,
+  PERMISSIONS.BRANCHES_CREATE,
+  PERMISSIONS.BRANCHES_EDIT,
+  PERMISSIONS.BRANCHES_DELETE,
+
   PERMISSIONS.SETTINGS_VIEW,
   PERMISSIONS.SETTINGS_EDIT,
 
@@ -61,6 +149,38 @@ export const ALL_PERMISSIONS: Permission[] = [
   PERMISSIONS.STORAGE_UPLOAD,
   PERMISSIONS.STORAGE_DELETE,
 ];
+
+/**
+ * Baseline granted to every STAFF account (and re-applied whenever an
+ * account is demoted to staff). Keeps profiles.role and user_permissions
+ * consistent — the role alone never decides access.
+ */
+export const STAFF_DEFAULT_PERMISSIONS: Permission[] = [
+  PERMISSIONS.DASHBOARD_VIEW,
+  PERMISSIONS.COURSES_VIEW,
+  PERMISSIONS.FACULTY_VIEW,
+  PERMISSIONS.SUBJECTS_VIEW,
+  PERMISSIONS.BATCHES_VIEW,
+  PERMISSIONS.SCHEDULE_VIEW,
+  PERMISSIONS.RESULTS_VIEW,
+  PERMISSIONS.ENQUIRIES_VIEW,
+  PERMISSIONS.ENQUIRIES_EDIT,
+  PERMISSIONS.ANNOUNCEMENTS_VIEW,
+  PERMISSIONS.GALLERY_VIEW,
+  PERMISSIONS.TESTIMONIALS_VIEW,
+  PERMISSIONS.FAQ_VIEW,
+  PERMISSIONS.BRANCHES_VIEW,
+  PERMISSIONS.STORAGE_UPLOAD,
+];
+
+/** ADMIN receives the full permission set; it can still be narrowed later. */
+export const ADMIN_DEFAULT_PERMISSIONS: Permission[] = [...ALL_PERMISSIONS];
+
+export function defaultPermissionsForRole(role: string): string[] {
+  if (role === "owner") return [...ALL_PERMISSIONS];
+  if (role === "admin") return [...ADMIN_DEFAULT_PERMISSIONS];
+  return [...STAFF_DEFAULT_PERMISSIONS];
+}
 
 export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] = [
   { label: "Dashboard", permissions: [PERMISSIONS.DASHBOARD_VIEW] },
@@ -89,6 +209,81 @@ export const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] =
       PERMISSIONS.SUBJECTS_CREATE,
       PERMISSIONS.SUBJECTS_EDIT,
       PERMISSIONS.SUBJECTS_DELETE,
+    ],
+  },
+  {
+    label: "Batches",
+    permissions: [
+      PERMISSIONS.BATCHES_VIEW,
+      PERMISSIONS.BATCHES_CREATE,
+      PERMISSIONS.BATCHES_EDIT,
+      PERMISSIONS.BATCHES_DELETE,
+    ],
+  },
+  {
+    label: "Schedule",
+    permissions: [
+      PERMISSIONS.SCHEDULE_VIEW,
+      PERMISSIONS.SCHEDULE_CREATE,
+      PERMISSIONS.SCHEDULE_EDIT,
+      PERMISSIONS.SCHEDULE_DELETE,
+    ],
+  },
+  {
+    label: "Results",
+    permissions: [
+      PERMISSIONS.RESULTS_VIEW,
+      PERMISSIONS.RESULTS_CREATE,
+      PERMISSIONS.RESULTS_EDIT,
+      PERMISSIONS.RESULTS_DELETE,
+    ],
+  },
+  {
+    label: "Enquiries",
+    permissions: [
+      PERMISSIONS.ENQUIRIES_VIEW,
+      PERMISSIONS.ENQUIRIES_CREATE,
+      PERMISSIONS.ENQUIRIES_EDIT,
+      PERMISSIONS.ENQUIRIES_DELETE,
+    ],
+  },
+  {
+    label: "Announcements",
+    permissions: [
+      PERMISSIONS.ANNOUNCEMENTS_VIEW,
+      PERMISSIONS.ANNOUNCEMENTS_CREATE,
+      PERMISSIONS.ANNOUNCEMENTS_EDIT,
+      PERMISSIONS.ANNOUNCEMENTS_DELETE,
+    ],
+  },
+  {
+    label: "Gallery",
+    permissions: [
+      PERMISSIONS.GALLERY_VIEW,
+      PERMISSIONS.GALLERY_UPLOAD,
+      PERMISSIONS.GALLERY_DELETE,
+    ],
+  },
+  {
+    label: "Testimonials",
+    permissions: [
+      PERMISSIONS.TESTIMONIALS_VIEW,
+      PERMISSIONS.TESTIMONIALS_CREATE,
+      PERMISSIONS.TESTIMONIALS_EDIT,
+      PERMISSIONS.TESTIMONIALS_DELETE,
+    ],
+  },
+  {
+    label: "FAQ",
+    permissions: [PERMISSIONS.FAQ_VIEW, PERMISSIONS.FAQ_CREATE, PERMISSIONS.FAQ_EDIT, PERMISSIONS.FAQ_DELETE],
+  },
+  {
+    label: "Branches",
+    permissions: [
+      PERMISSIONS.BRANCHES_VIEW,
+      PERMISSIONS.BRANCHES_CREATE,
+      PERMISSIONS.BRANCHES_EDIT,
+      PERMISSIONS.BRANCHES_DELETE,
     ],
   },
   { label: "Settings", permissions: [PERMISSIONS.SETTINGS_VIEW, PERMISSIONS.SETTINGS_EDIT] },

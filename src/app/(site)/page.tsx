@@ -6,11 +6,14 @@ import {
   ArrowRight,
   Award,
   BookOpen,
+  CalendarDays,
   CheckCircle2,
   MapPin,
+  Megaphone,
   Phone,
   Sparkles,
   Target,
+  Trophy,
 } from "lucide-react";
 import { getInstitute, getSiteSettings } from "@/lib/data/settings";
 import {
@@ -20,7 +23,12 @@ import {
   getActiveTestimonials,
   getActiveFaqs,
   getGalleryItems,
+  getLiveAnnouncements,
+  getPublishedBatches,
+  getPublishedResults,
 } from "@/lib/data/public";
+import { ANNOUNCEMENT_CATEGORIES } from "@/lib/types";
+import { formatTime } from "@/lib/utils/time";
 import { CourseCard, FacultyCard, Rating, SectionHeading, EmptyState } from "@/components/site/Shared";
 import { EnquiryForm } from "@/components/site/EnquiryForm";
 
@@ -43,14 +51,25 @@ const SECTION_ICONS = [Target, BookOpen, Award, Sparkles];
 export default async function HomePage() {
   const institute = await getInstitute();
   const settings = await getSiteSettings();
-  const [courses, faculty, subjects, testimonials, faqs, gallery] = await Promise.all([
-    getPublishedCourses({ limit: 6 }),
-    getPublishedFaculty(),
-    getActiveSubjects(),
-    getActiveTestimonials(6),
-    getActiveFaqs(5),
-    getGalleryItems(6),
-  ]);
+  const [courses, faculty, subjects, testimonials, faqs, gallery, announcements, batches, results] =
+    await Promise.all([
+      getPublishedCourses({ limit: 6 }),
+      getPublishedFaculty(),
+      getActiveSubjects(),
+      getActiveTestimonials(6),
+      getActiveFaqs(5),
+      getGalleryItems(6),
+      getLiveAnnouncements(3),
+      getPublishedBatches(),
+      getPublishedResults(3),
+    ]);
+
+  const upcomingBatches = batches.filter(
+    (batch) => batch.status === "upcoming" || batch.status === "ongoing"
+  );
+  const noticeCategories = Object.fromEntries(
+    ANNOUNCEMENT_CATEGORIES.map((row) => [row.value, row.label])
+  );
 
   const displayName = institute.name || "Coaching Institute";
 
@@ -113,6 +132,40 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* 2b. Announcements */}
+      {announcements.length > 0 && (
+        <section className="bg-white py-10">
+          <div className="container-site">
+            <SectionHeading
+              eyebrow="Notices"
+              title="Latest announcements"
+              action={{ href: "/announcements", label: "All announcements" }}
+            />
+            <ul className="space-y-3">
+              {announcements.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent,#2563eb)]/10 px-3 py-1 text-[11px] font-semibold text-[var(--accent,#2563eb)]">
+                      <Megaphone className="h-3 w-3" />
+                      {noticeCategories[row.category] || row.category}
+                    </span>
+                    <span className="font-medium text-slate-900">{row.title}</span>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    {row.publish_date
+                      ? new Date(`${row.publish_date}T00:00:00`).toLocaleDateString()
+                      : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
       {/* 3. Why choose us */}
       <section className="container-site py-16">
         <SectionHeading
@@ -158,6 +211,58 @@ export default async function HomePage() {
             <EmptyState message="No published courses yet. Courses added in the admin panel will appear here." />
           )}
         </div>
+      </section>
+
+      {/* 4b. Upcoming batches */}
+      <section className="container-site py-16">
+        <SectionHeading
+          eyebrow="Batches"
+          title="Upcoming & ongoing batches"
+          description="Fixed timings, small groups and a clear schedule for every batch."
+          action={{ href: "/batches", label: "See all batches" }}
+        />
+        {upcomingBatches.length ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {upcomingBatches.slice(0, 6).map((batch) => (
+              <article
+                key={batch.id}
+                className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-5 transition hover:border-slate-300 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="font-semibold text-slate-900">{batch.name}</h3>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold capitalize text-slate-600">
+                    {batch.status}
+                  </span>
+                </div>
+                {batch.course && (
+                  <p className="mt-1 text-sm text-[var(--accent,#2563eb)]">{batch.course.title}</p>
+                )}
+                {batch.start_time && (
+                  <p className="mt-3 flex items-center gap-2 text-sm text-slate-600">
+                    <CalendarDays className="h-4 w-4 text-slate-400" />
+                    {formatTime(batch.start_time)} – {formatTime(batch.end_time)}
+                    {batch.days.length > 0 && ` · ${batch.days.join(", ")}`}
+                  </p>
+                )}
+                <p className="mt-2 text-sm text-slate-600">
+                  {batch.mode}
+                  {batch.room && ` · Room ${batch.room}`}
+                  {batch.capacity > 0 && ` · ${batch.capacity} seats`}
+                </p>
+                <div className="mt-auto pt-4">
+                  <Link
+                    href="/batches"
+                    className="text-sm font-medium text-[var(--accent,#2563eb)] hover:underline"
+                  >
+                    View batch details
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <EmptyState message="New batches will be announced here as soon as admissions open." />
+        )}
       </section>
 
       {/* 5. Subjects */}
@@ -232,6 +337,54 @@ export default async function HomePage() {
         ) : (
           <EmptyState message="Student testimonials will appear here once published." />
         )}
+      </section>
+
+      {/* 7b. Results */}
+      <section className="bg-slate-50 py-16">
+        <div className="container-site">
+          <SectionHeading
+            eyebrow="Results"
+            title="Recent achievements"
+            action={{ href: "/results", label: "View all results" }}
+          />
+          {results.length ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {results.map((row) => (
+                <article
+                  key={row.id}
+                  className="rounded-xl border border-slate-200 bg-white p-6"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-slate-900">{row.student_name}</p>
+                    <Trophy className="h-5 w-5 text-amber-400" />
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {[row.exam, row.year].filter(Boolean).join(" · ")}
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                    {row.rank && (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+                        Rank {row.rank}
+                      </span>
+                    )}
+                    {row.percentile && (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+                        {row.percentile} %ile
+                      </span>
+                    )}
+                    {row.score && (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+                        {row.score}
+                      </span>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Student results will be published here after the next exams." />
+          )}
+        </div>
       </section>
 
       {/* 8. Gallery preview */}

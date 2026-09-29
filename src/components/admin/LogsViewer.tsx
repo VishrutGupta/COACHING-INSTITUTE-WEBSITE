@@ -36,6 +36,7 @@ interface Props {
 
 const ACTIONS = [
   "",
+  // Part 1 (uppercase)
   "LOGIN",
   "OWNER_BOOTSTRAP",
   "PASSWORD_RESET",
@@ -52,10 +53,49 @@ const ACTIONS = [
   "USER_CREATE",
   "USER_UPDATE",
   "USER_DELETE",
+  // Part 2 (dotted)
+  "batch.create",
+  "batch.update",
+  "batch.delete",
+  "schedule.create",
+  "schedule.update",
+  "schedule.delete",
+  "result.create",
+  "result.update",
+  "result.delete",
+  "enquiry.create",
+  "enquiry.update",
+  "enquiry.delete",
+  "announcement.create",
+  "announcement.update",
+  "announcement.delete",
+  "gallery.create",
+  "gallery.update",
+  "gallery.delete",
+  "gallery.album.create",
+  "gallery.album.update",
+  "gallery.album.delete",
+  "testimonial.create",
+  "testimonial.update",
+  "testimonial.delete",
+  "faq.create",
+  "faq.update",
+  "faq.delete",
+  "branch.create",
+  "branch.update",
+  "branch.delete",
+  "user.create",
+  "user.update",
+  "user.role_change",
+  "user.disable",
+  "user.enable",
+  "user.delete",
+  "user.permissions",
 ];
 
 const ENTITY_TYPES = [
   "",
+  // Part 1
   "Course",
   "Faculty",
   "Subject",
@@ -64,6 +104,17 @@ const ENTITY_TYPES = [
   "UserPermission",
   "CourseFaculty",
   "Auth",
+  // Part 2
+  "Batch",
+  "Schedule",
+  "Result",
+  "Enquiry",
+  "Announcement",
+  "Gallery item",
+  "Gallery album",
+  "Testimonial",
+  "FAQ",
+  "Branch",
 ];
 
 export function LogsViewer({ logs, actors, total, page, limit }: Props) {
@@ -271,23 +322,34 @@ export function LogsViewer({ logs, actors, total, page, limit }: Props) {
                 </p>
               ) : (
                 changes.map((change) => (
-                  <div key={change.field} className="rounded-lg border border-slate-200 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <div key={change.field} className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-900">
                       {fieldLabel(change.field)}
                     </p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      <div className="rounded bg-red-50 px-3 py-2">
-                        <p className="text-[11px] font-medium text-red-500">Old</p>
-                        <p className="break-words text-sm text-red-700">
-                          {displayValue(change.before)}
+                    <div className="mt-2 space-y-1">
+                      {change.type === "added" && (
+                        <p className="text-sm text-emerald-700">
+                          <span aria-hidden>🟢</span> Added: {displayValue(change.after)}
                         </p>
-                      </div>
-                      <div className="rounded bg-emerald-50 px-3 py-2">
-                        <p className="text-[11px] font-medium text-emerald-600">New</p>
-                        <p className="break-words text-sm text-emerald-700">
-                          {displayValue(change.after)}
+                      )}
+                      {change.type === "removed" && (
+                        <p className="text-sm text-red-700">
+                          <span aria-hidden>🔴</span> Removed: {displayValue(change.before)}
                         </p>
-                      </div>
+                      )}
+                      {change.type === "changed" && (
+                        <>
+                          <p className="text-sm text-red-700">
+                            <span aria-hidden>🔴</span> {displayValue(change.before)}
+                          </p>
+                          <p className="text-sm text-slate-900">
+                            <span className="text-slate-500">→</span>
+                          </p>
+                          <p className="text-sm text-emerald-700">
+                            <span aria-hidden>🟢</span> {displayValue(change.after)}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))

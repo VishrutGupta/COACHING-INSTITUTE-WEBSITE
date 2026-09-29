@@ -1,128 +1,56 @@
 import React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpen, GraduationCap, Layers, PlusCircle, Settings, Users } from "lucide-react";
+import {
+  BookOpen,
+  Boxes,
+  CalendarDays,
+  GraduationCap,
+  Inbox,
+  Layers,
+  Megaphone,
+  PlusCircle,
+  Settings,
+  Trophy,
+  Users,
+} from "lucide-react";
 import { getAuthUser, hasPermission } from "@/lib/server/authorization";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { PERMISSIONS } from "@/lib/constants/permissions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 import { formatDateTime } from "@/lib/utils/format";
+import { EMPTY_DASHBOARD_COUNTS, loadDashboard } from "@/lib/server/dashboard";
 
 export const dynamic = "force-dynamic";
-
-const EMPTY_COUNTS = {
-  courses: 0,
-  activeCourses: 0,
-  faculty: 0,
-  activeFaculty: 0,
-  subjects: 0,
-};
-
-interface ActivityRow {
-  id: string;
-  action: string;
-  resource_type: string;
-  description: string;
-  actor_username: string;
-  created_at: string;
-}
 
 export default async function AdminDashboardPage() {
   const user = await getAuthUser();
   if (!user) redirect("/admin/login");
 
-  let counts = EMPTY_COUNTS;
-  let recentActivity: ActivityRow[] = [];
-  let loadError = false;
+  const { counts, recent, error: loadError } = await loadDashboard(user);
+  const stats = counts || EMPTY_DASHBOARD_COUNTS;
 
-  if (hasPermission(user, PERMISSIONS.DASHBOARD_VIEW)) {
-    try {
-      const supabase = await createSupabaseServerClient();
-      const [courses, activeCourses, faculty, activeFaculty, subjects, recent] =
-        await Promise.all([
-          supabase
-            .from("courses")
-            .select("id", { count: "exact", head: true })
-            .eq("institute_id", user.instituteId),
-          supabase
-            .from("courses")
-            .select("id", { count: "exact", head: true })
-            .eq("institute_id", user.instituteId)
-            .eq("is_active", true),
-          supabase
-            .from("faculty")
-            .select("id", { count: "exact", head: true })
-            .eq("institute_id", user.instituteId),
-          supabase
-            .from("faculty")
-            .select("id", { count: "exact", head: true })
-            .eq("institute_id", user.instituteId)
-            .eq("is_active", true),
-          supabase
-            .from("subjects")
-            .select("id", { count: "exact", head: true })
-            .eq("institute_id", user.instituteId)
-            .eq("is_active", true),
-          supabase
-            .from("audit_logs")
-            .select("id, action, resource_type, description, actor_username, created_at")
-            .eq("institute_id", user.instituteId)
-            .order("created_at", { ascending: false })
-            .limit(8),
-        ]);
-
-      counts = {
-        courses: courses.count || 0,
-        activeCourses: activeCourses.count || 0,
-        faculty: faculty.count || 0,
-        activeFaculty: activeFaculty.count || 0,
-        subjects: subjects.count || 0,
-      };
-      recentActivity = (recent.data as ActivityRow[]) || [];
-    } catch {
-      loadError = true;
-    }
-  }
-
-  const stats = [
-    { label: "Total Courses", value: counts.courses, icon: BookOpen },
-    { label: "Active Courses", value: counts.activeCourses, icon: Settings },
-    { label: "Faculty", value: counts.faculty, icon: GraduationCap },
-    { label: "Subjects", value: counts.subjects, icon: Layers },
-  ];
+  const statCards = [
+    { label: "Active Courses", value: stats.activeCourses, icon: BookOpen, permission: PERMISSIONS.COURSES_VIEW },
+    { label: "Faculty", value: stats.faculty, icon: GraduationCap, permission: PERMISSIONS.FACULTY_VIEW },
+    { label: "Subjects", value: stats.subjects, icon: Layers, permission: PERMISSIONS.SUBJECTS_VIEW },
+    { label: "Published Batches", value: stats.activeBatches, icon: Boxes, permission: PERMISSIONS.BATCHES_VIEW },
+    { label: "Timetable Classes", value: stats.classes, icon: CalendarDays, permission: PERMISSIONS.SCHEDULE_VIEW },
+    { label: "New Enquiries", value: stats.newEnquiries, icon: Inbox, permission: PERMISSIONS.ENQUIRIES_VIEW },
+    { label: "Announcements", value: stats.announcements, icon: Megaphone, permission: PERMISSIONS.ANNOUNCEMENTS_VIEW },
+    { label: "Published Results", value: stats.results, icon: Trophy, permission: PERMISSIONS.RESULTS_VIEW },
+  ].filter((stat) => user.role === "owner" || hasPermission(user, stat.permission));
 
   const quickActions = [
-    {
-      label: "Add Course",
-      href: "/admin/courses/new",
-      permission: PERMISSIONS.COURSES_CREATE,
-      icon: PlusCircle,
-    },
-    {
-      label: "Add Faculty",
-      href: "/admin/faculty/new",
-      permission: PERMISSIONS.FACULTY_CREATE,
-      icon: PlusCircle,
-    },
-    {
-      label: "Add Subject",
-      href: "/admin/subjects",
-      permission: PERMISSIONS.SUBJECTS_CREATE,
-      icon: PlusCircle,
-    },
-    {
-      label: "Settings",
-      href: "/admin/settings",
-      permission: PERMISSIONS.SETTINGS_VIEW,
-      icon: Settings,
-    },
-    {
-      label: "Users",
-      href: "/admin/users",
-      permission: PERMISSIONS.USERS_VIEW,
-      icon: Users,
-    },
+    { label: "New Batch", href: "/admin/batches/new", permission: PERMISSIONS.BATCHES_CREATE, icon: PlusCircle },
+    { label: "Schedule a Class", href: "/admin/schedule/new", permission: PERMISSIONS.SCHEDULE_CREATE, icon: PlusCircle },
+    { label: "New Announcement", href: "/admin/announcements/new", permission: PERMISSIONS.ANNOUNCEMENTS_CREATE, icon: PlusCircle },
+    { label: "Add Course", href: "/admin/courses/new", permission: PERMISSIONS.COURSES_CREATE, icon: PlusCircle },
+    { label: "Add Faculty", href: "/admin/faculty/new", permission: PERMISSIONS.FACULTY_CREATE, icon: PlusCircle },
+    { label: "Enquiries", href: "/admin/enquiries", permission: PERMISSIONS.ENQUIRIES_VIEW, icon: Inbox },
+    { label: "Gallery", href: "/admin/gallery", permission: PERMISSIONS.GALLERY_VIEW, icon: PlusCircle },
+    { label: "Settings", href: "/admin/settings", permission: PERMISSIONS.SETTINGS_VIEW, icon: Settings },
+    { label: "Users", href: "/admin/users", permission: PERMISSIONS.USERS_VIEW, icon: Users },
   ].filter((action) => user.role === "owner" || hasPermission(user, action.permission));
 
   return (
@@ -140,7 +68,7 @@ export default async function AdminDashboardPage() {
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        {stats.map((stat) => {
+        {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
             <Card key={stat.label}>
@@ -164,13 +92,13 @@ export default async function AdminDashboardPage() {
             <h2 className="text-sm font-semibold text-slate-900">Recent activity</h2>
           </div>
           <CardContent className="px-0 py-0">
-            {recentActivity.length === 0 ? (
+            {recent.length === 0 ? (
               <p className="px-5 py-6 text-sm text-slate-500">
                 No activity recorded yet. Actions you take will appear here.
               </p>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {recentActivity.map((row) => (
+                {recent.map((row) => (
                   <li key={row.id} className="flex items-start justify-between gap-4 px-5 py-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm text-slate-800">{row.description}</p>
@@ -195,7 +123,7 @@ export default async function AdminDashboardPage() {
           <CardContent className="flex flex-col gap-2">
             {quickActions.map((action) => (
               <Link
-                key={action.href}
+                key={`${action.href}-${action.label}`}
                 href={action.href}
                 className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
               >

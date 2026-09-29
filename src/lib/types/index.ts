@@ -126,6 +126,7 @@ export interface GalleryItem {
   description: string;
   image_url: string;
   category: string;
+  album_id: string | null;
   display_order: number;
   is_active: boolean;
   created_at?: string;
@@ -169,7 +170,161 @@ export interface Enquiry {
   course_id?: string | null;
   source: string;
   status?: string;
+  preferred_batch?: string;
+  assigned_to?: string | null;
+  notes?: string;
   created_at?: string;
+  updated_at?: string;
+}
+
+export type EnquiryStatus =
+  | "new"
+  | "contacted"
+  | "follow_up"
+  | "interested"
+  | "converted"
+  | "closed";
+
+export const ENQUIRY_STATUSES: EnquiryStatus[] = [
+  "new",
+  "contacted",
+  "follow_up",
+  "interested",
+  "converted",
+  "closed",
+];
+
+export const ENQUIRY_STATUS_LABELS: Record<EnquiryStatus, string> = {
+  new: "New",
+  contacted: "Contacted",
+  follow_up: "Follow-up",
+  interested: "Interested",
+  converted: "Converted",
+  closed: "Closed",
+};
+
+export interface Branch {
+  id: string;
+  institute_id: string;
+  name: string;
+  slug: string;
+  address: string;
+  phone: string;
+  email: string;
+  maps_url: string;
+  opening_hours: string;
+  is_active: boolean;
+  display_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Batch {
+  id: string;
+  institute_id: string;
+  name: string;
+  course_id: string | null;
+  faculty_id: string | null;
+  branch_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  days: string[];
+  start_time: string;
+  end_time: string;
+  room: string;
+  mode: CourseMode;
+  capacity: number;
+  status: "upcoming" | "ongoing" | "completed" | "cancelled";
+  description: string;
+  is_active: boolean;
+  display_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ScheduleEntry {
+  id: string;
+  institute_id: string;
+  course_id: string | null;
+  batch_id: string | null;
+  subject_id: string | null;
+  faculty_id: string | null;
+  branch_id: string | null;
+  day: string;
+  date: string | null;
+  start_time: string;
+  end_time: string;
+  room: string;
+  mode: CourseMode;
+  notes: string;
+  is_active: boolean;
+  display_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Result {
+  id: string;
+  institute_id: string;
+  student_name: string;
+  exam: string;
+  year: number | null;
+  rank: string;
+  percentile: string;
+  score: string;
+  course_id: string | null;
+  image_url: string | null;
+  description: string;
+  featured: boolean;
+  is_active: boolean;
+  display_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type AnnouncementCategory =
+  | "new_batch"
+  | "admission"
+  | "results"
+  | "holiday"
+  | "exam"
+  | "important";
+
+export const ANNOUNCEMENT_CATEGORIES: { value: AnnouncementCategory; label: string }[] = [
+  { value: "new_batch", label: "New batch" },
+  { value: "admission", label: "Admission" },
+  { value: "results", label: "Results" },
+  { value: "holiday", label: "Holiday" },
+  { value: "exam", label: "Exam" },
+  { value: "important", label: "Important notice" },
+];
+
+export interface Announcement {
+  id: string;
+  institute_id: string;
+  title: string;
+  content: string;
+  image_url: string | null;
+  category: AnnouncementCategory;
+  publish_date: string | null;
+  expiry_date: string | null;
+  is_active: boolean;
+  featured: boolean;
+  display_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface GalleryAlbum {
+  id: string;
+  institute_id: string;
+  title: string;
+  description: string;
+  cover_url: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AuditLog {

@@ -1,16 +1,20 @@
 -- ====================================================================
 -- SEED_DATABASE.sql  (CONSOLIDATED)
--- Coaching Institute Website + Core Admin Platform — Part 1
+-- Coaching Institute Website + Core Admin Platform — Parts 1 & 2
 --
 -- Run this ENTIRE file once in the Supabase SQL Editor
 -- (Dashboard > SQL Editor > New query > Run).
 --
--- It is the concatenation of supabase/migrations/001..005 and creates:
+-- It is the concatenation of supabase/migrations/001..007 and creates:
 --   * tables, indexes, triggers
 --   * SECURITY DEFINER helper functions
 --   * Row Level Security policies (RLS stays ON)
 --   * storage buckets + policies
 --   * SEED DATA for the default institute, settings, subjects, FAQs, testimonials
+--
+-- Part 2 tables: branches, batches, schedule_entries, results,
+-- announcements, gallery_albums, plus enquiry workflow columns,
+-- gallery albums, testimonial features and their RLS policies.
 --
 -- It does NOT create a password. Supabase Auth owns credentials.
 -- After running it, create the owner account via POST /api/auth/bootstrap
@@ -25,7 +29,7 @@
 -- ====================================================================
 -- 001_coaching_core_tables.sql
 -- Part 1: extensions, tables, indexes, triggers.
--- Idempotent â€” safe to run more than once.
+-- Idempotent — safe to run more than once.
 -- ====================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -317,7 +321,6 @@ BEGIN
   END LOOP;
 END $$;
 
-
 -- ====================================================================
 -- FILE: supabase\migrations\002_coaching_functions.sql
 -- ====================================================================
@@ -325,7 +328,7 @@ END $$;
 -- ====================================================================
 -- 002_coaching_functions.sql
 -- SECURITY DEFINER helpers (non-recursive), login lookup, owner guards.
--- Idempotent â€” safe to run more than once.
+-- Idempotent — safe to run more than once.
 -- ====================================================================
 
 -- ---------------------------------------------------------------- 1. ROLE / SCOPE HELPERS
@@ -494,7 +497,6 @@ CREATE TRIGGER trg_profiles_protect_owner
   BEFORE INSERT OR UPDATE OR DELETE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.protect_owner_profile ();
 
-
 -- ====================================================================
 -- FILE: supabase\migrations\003_coaching_rls.sql
 -- ====================================================================
@@ -502,7 +504,7 @@ CREATE TRIGGER trg_profiles_protect_owner
 -- ====================================================================
 -- 003_coaching_rls.sql
 -- Row Level Security. RLS stays ON everywhere; no USING(true) on private data.
--- Idempotent â€” safe to run more than once.
+-- Idempotent — safe to run more than once.
 -- ====================================================================
 
 ALTER TABLE public.institutes ENABLE ROW LEVEL SECURITY;
@@ -953,7 +955,6 @@ CREATE POLICY "Institute members append audit logs"
 
 -- Append-only: no UPDATE or DELETE policies exist for audit_logs.
 
-
 -- ====================================================================
 -- FILE: supabase\migrations\004_coaching_storage.sql
 -- ====================================================================
@@ -961,7 +962,7 @@ CREATE POLICY "Institute members append audit logs"
 -- ====================================================================
 -- 004_coaching_storage.sql
 -- Storage buckets + storage.objects policies for the coaching platform.
--- Idempotent â€” safe to run more than once.
+-- Idempotent — safe to run more than once.
 -- ====================================================================
 
 -- ---------------------------------------------------------------- 1. BUCKETS
@@ -1015,7 +1016,6 @@ CREATE POLICY "Storage delete permission"
     AND public.has_permission ('storage.delete')
   );
 
-
 -- ====================================================================
 -- FILE: supabase\migrations\005_coaching_seed.sql
 -- ====================================================================
@@ -1024,7 +1024,7 @@ CREATE POLICY "Storage delete permission"
 -- 005_coaching_seed.sql
 -- Part 1 seed data. Everything here is clearly marked SEED DATA and can
 -- be edited later from /admin/settings.
--- Idempotent â€” safe to run more than once.
+-- Idempotent — safe to run more than once.
 -- ====================================================================
 
 -- ---------------------------------------------------------------- 1. SEED DATA: default institute
@@ -1039,7 +1039,7 @@ VALUES (
   'my-coaching-institute',
   'Learn better. Score higher.',
   'Achieve your academic and competitive exam goals with expert faculty and structured preparation.',
-  'Classroom and online coaching for school, board and competitive examinations â€” with small batches, regular testing and personal mentoring.',
+  'Classroom and online coaching for school, board and competitive examinations — with small batches, regular testing and personal mentoring.',
   '123 Knowledge Park, Main Road, Your City, India',
   '+91 98765 43210',
   '+91 98765 43210',
@@ -1049,7 +1049,7 @@ VALUES (
   'Admissions open for the new session. Contact us for a free counselling call.',
   '+91 98765 43210',
   '#2563eb',
-  'My Coaching Institute â€” Admissions Open',
+  'My Coaching Institute — Admissions Open',
   'Join My Coaching Institute for expert-led coaching, small batches and proven results in school, board and competitive examinations.',
   true
 )
@@ -1181,3 +1181,725 @@ ON CONFLICT DO NOTHING;
 --      profile row with role = 'owner' using the SQL Editor.
 --
 -- Never store a password in public tables.
+
+-- ====================================================================
+-- FILE: supabase\migrations\006_part2_tables.sql
+-- ====================================================================
+
+-- ====================================================================
+-- 006_part2_tables.sql
+-- Part 2: branches, batches, schedule, results, announcements,
+-- gallery albums, advanced enquiries and testimonial features.
+-- Idempotent — safe to run more than once.
+-- ====================================================================
+
+-- ---------------------------------------------------------------- 1. BRANCHES
+CREATE TABLE IF NOT EXISTS public.branches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institute_id UUID NOT NULL REFERENCES public.institutes (id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  address TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  maps_url TEXT NOT NULL DEFAULT '',
+  opening_hours TEXT NOT NULL DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  display_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_branch_slug UNIQUE (institute_id, slug)
+);
+
+CREATE INDEX IF NOT EXISTS idx_branches_institute ON public.branches (institute_id, is_active, display_order);
+
+-- ---------------------------------------------------------------- 2. BRANCH ASSOCIATIONS
+CREATE TABLE IF NOT EXISTS public.branch_courses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institute_id UUID NOT NULL REFERENCES public.institutes (id) ON DELETE CASCADE,
+  branch_id UUID NOT NULL REFERENCES public.branches (id) ON DELETE CASCADE,
+  course_id UUID NOT NULL REFERENCES public.courses (id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_branch_course UNIQUE (branch_id, course_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_branch_courses_branch ON public.branch_courses (branch_id);
+CREATE INDEX IF NOT EXISTS idx_branch_courses_course ON public.branch_courses (course_id);
+
+CREATE TABLE IF NOT EXISTS public.branch_faculty (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institute_id UUID NOT NULL REFERENCES public.institutes (id) ON DELETE CASCADE,
+  branch_id UUID NOT NULL REFERENCES public.branches (id) ON DELETE CASCADE,
+  faculty_id UUID NOT NULL REFERENCES public.faculty (id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_branch_faculty UNIQUE (branch_id, faculty_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_branch_faculty_branch ON public.branch_faculty (branch_id);
+CREATE INDEX IF NOT EXISTS idx_branch_faculty_faculty ON public.branch_faculty (faculty_id);
+
+-- ---------------------------------------------------------------- 3. BATCHES
+CREATE TABLE IF NOT EXISTS public.batches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institute_id UUID NOT NULL REFERENCES public.institutes (id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  course_id UUID REFERENCES public.courses (id) ON DELETE SET NULL,
+  faculty_id UUID REFERENCES public.faculty (id) ON DELETE SET NULL,
+  branch_id UUID REFERENCES public.branches (id) ON DELETE SET NULL,
+  start_date DATE,
+  end_date DATE,
+  days JSONB NOT NULL DEFAULT '[]'::jsonb,
+  start_time TEXT NOT NULL DEFAULT '',
+  end_time TEXT NOT NULL DEFAULT '',
+  room TEXT NOT NULL DEFAULT '',
+  mode TEXT NOT NULL DEFAULT 'Offline' CHECK (mode IN ('Online', 'Offline', 'Hybrid')),
+  capacity INT NOT NULL DEFAULT 0 CHECK (capacity >= 0),
+  status TEXT NOT NULL DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'ongoing', 'completed', 'cancelled')),
+  description TEXT NOT NULL DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT false,
+  display_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_batches_institute ON public.batches (institute_id, is_active, display_order);
+CREATE INDEX IF NOT EXISTS idx_batches_course ON public.batches (course_id);
+CREATE INDEX IF NOT EXISTS idx_batches_start ON public.batches (start_date);
+
+-- ---------------------------------------------------------------- 4. SCHEDULE / TIMETABLE
+CREATE TABLE IF NOT EXISTS public.schedule_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institute_id UUID NOT NULL REFERENCES public.institutes (id) ON DELETE CASCADE,
+  course_id UUID REFERENCES public.courses (id) ON DELETE SET NULL,
+  batch_id UUID REFERENCES public.batches (id) ON DELETE SET NULL,
+  subject_id UUID REFERENCES public.subjects (id) ON DELETE SET NULL,
+  faculty_id UUID REFERENCES public.faculty (id) ON DELETE SET NULL,
+  branch_id UUID REFERENCES public.branches (id) ON DELETE SET NULL,
+  day TEXT NOT NULL DEFAULT '',
+  date DATE,
+  start_time TEXT NOT NULL DEFAULT '',
+  end_time TEXT NOT NULL DEFAULT '',
+  room TEXT NOT NULL DEFAULT '',
+  mode TEXT NOT NULL DEFAULT 'Offline' CHECK (mode IN ('Online', 'Offline', 'Hybrid')),
+  notes TEXT NOT NULL DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  display_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_schedule_institute ON public.schedule_entries (institute_id, is_active, display_order);
+CREATE INDEX IF NOT EXISTS idx_schedule_faculty ON public.schedule_entries (faculty_id, day, start_time);
+CREATE INDEX IF NOT EXISTS idx_schedule_date ON public.schedule_entries (date);
+CREATE INDEX IF NOT EXISTS idx_schedule_batch ON public.schedule_entries (batch_id);
+
+-- ---------------------------------------------------------------- 5. RESULTS
+CREATE TABLE IF NOT EXISTS public.results (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institute_id UUID NOT NULL REFERENCES public.institutes (id) ON DELETE CASCADE,
+  student_name TEXT NOT NULL,
+  exam TEXT NOT NULL DEFAULT '',
+  year INT,
+  rank TEXT NOT NULL DEFAULT '',
+  percentile TEXT NOT NULL DEFAULT '',
+  score TEXT NOT NULL DEFAULT '',
+  course_id UUID REFERENCES public.courses (id) ON DELETE SET NULL,
+  image_url TEXT,
+  description TEXT NOT NULL DEFAULT '',
+  featured BOOLEAN NOT NULL DEFAULT false,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  display_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_results_institute ON public.results (institute_id, is_active, year DESC NULLS LAST);
+
+-- ---------------------------------------------------------------- 6. ANNOUNCEMENTS
+CREATE TABLE IF NOT EXISTS public.announcements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institute_id UUID NOT NULL REFERENCES public.institutes (id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  image_url TEXT,
+  category TEXT NOT NULL DEFAULT 'important' CHECK (
+    category IN ('new_batch', 'admission', 'results', 'holiday', 'exam', 'important')
+  ),
+  publish_date DATE,
+  expiry_date DATE,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  featured BOOLEAN NOT NULL DEFAULT false,
+  display_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_announcements_institute ON public.announcements (institute_id, is_active, publish_date DESC);
+
+-- ---------------------------------------------------------------- 7. GALLERY ALBUMS
+CREATE TABLE IF NOT EXISTS public.gallery_albums (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institute_id UUID NOT NULL REFERENCES public.institutes (id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  cover_url TEXT,
+  display_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gallery_albums_institute ON public.gallery_albums (institute_id, is_active, display_order);
+
+ALTER TABLE public.gallery_items
+  ADD COLUMN IF NOT EXISTS album_id UUID REFERENCES public.gallery_albums (id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_gallery_items_album ON public.gallery_items (album_id);
+
+-- ---------------------------------------------------------------- 8. ENQUIRY WORKFLOW
+ALTER TABLE public.enquiries
+  ADD COLUMN IF NOT EXISTS preferred_batch TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS assigned_to UUID,
+  ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+ALTER TABLE public.enquiries DROP CONSTRAINT IF EXISTS chk_enquiry_status;
+ALTER TABLE public.enquiries ADD CONSTRAINT chk_enquiry_status
+  CHECK (status IN ('new', 'contacted', 'follow_up', 'interested', 'converted', 'closed'));
+
+CREATE INDEX IF NOT EXISTS idx_enquiries_status ON public.enquiries (institute_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_enquiries_assigned ON public.enquiries (assigned_to);
+
+-- ---------------------------------------------------------------- 9. TESTIMONIAL FEATURES
+ALTER TABLE public.testimonials
+  ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT false;
+
+-- ---------------------------------------------------------------- 10. UPDATED_AT TRIGGERS
+DO $$
+DECLARE
+  t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'branches', 'batches', 'schedule_entries', 'results',
+    'announcements', 'gallery_albums', 'enquiries'
+  ] LOOP
+    EXECUTE format(
+      'DROP TRIGGER IF EXISTS trg_%s_updated_at ON public.%s;
+       CREATE TRIGGER trg_%s_updated_at BEFORE UPDATE ON public.%s
+       FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();',
+      t, t, t, t
+    );
+  END LOOP;
+END $$;
+
+-- ====================================================================
+-- FILE: supabase\migrations\007_part2_rls.sql
+-- ====================================================================
+
+-- ====================================================================
+-- 007_part2_rls.sql
+-- Row Level Security for Part 2 tables. RLS stays ON everywhere;
+-- no USING(true) on private data. Idempotent — safe to run twice.
+-- ====================================================================
+
+ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.branch_courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.branch_faculty ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.schedule_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gallery_albums ENABLE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------- BRANCHES
+DROP POLICY IF EXISTS "Public reads active branches" ON public.branches;
+CREATE POLICY "Public reads active branches"
+  ON public.branches FOR SELECT
+  TO anon, authenticated
+  USING (is_active = true);
+
+DROP POLICY IF EXISTS "Branches viewers read all branches" ON public.branches;
+CREATE POLICY "Branches viewers read all branches"
+  ON public.branches FOR SELECT
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('branches.view')
+  );
+
+DROP POLICY IF EXISTS "Branches creators insert" ON public.branches;
+CREATE POLICY "Branches creators insert"
+  ON public.branches FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('branches.create')
+  );
+
+DROP POLICY IF EXISTS "Branches editors update" ON public.branches;
+CREATE POLICY "Branches editors update"
+  ON public.branches FOR UPDATE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('branches.edit')
+  )
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('branches.edit')
+  );
+
+DROP POLICY IF EXISTS "Branches deleters delete" ON public.branches;
+CREATE POLICY "Branches deleters delete"
+  ON public.branches FOR DELETE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('branches.delete')
+  );
+
+-- ------------------------------------------------------ BRANCH ASSOCIATIONS
+-- Not publicly readable: the public site fetches the related courses and
+-- faculty directly through their own public policies.
+DROP POLICY IF EXISTS "Public reads branch courses" ON public.branch_courses;
+DROP POLICY IF EXISTS "Public reads branch faculty" ON public.branch_faculty;
+
+DROP POLICY IF EXISTS "Institute members read branch courses" ON public.branch_courses;
+CREATE POLICY "Institute members read branch courses"
+  ON public.branch_courses FOR SELECT
+  TO authenticated
+  USING (institute_id = public.current_institute_id ());
+
+DROP POLICY IF EXISTS "Branches editors write branch courses" ON public.branch_courses;
+CREATE POLICY "Branches editors write branch courses"
+  ON public.branch_courses FOR ALL
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND (
+      public.has_permission ('branches.create')
+      OR public.has_permission ('branches.edit')
+      OR public.has_permission ('branches.delete')
+    )
+  )
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND (
+      public.has_permission ('branches.create')
+      OR public.has_permission ('branches.edit')
+      OR public.has_permission ('branches.delete')
+    )
+  );
+
+DROP POLICY IF EXISTS "Institute members read branch faculty" ON public.branch_faculty;
+CREATE POLICY "Institute members read branch faculty"
+  ON public.branch_faculty FOR SELECT
+  TO authenticated
+  USING (institute_id = public.current_institute_id ());
+
+DROP POLICY IF EXISTS "Branches editors write branch faculty" ON public.branch_faculty;
+CREATE POLICY "Branches editors write branch faculty"
+  ON public.branch_faculty FOR ALL
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND (
+      public.has_permission ('branches.create')
+      OR public.has_permission ('branches.edit')
+      OR public.has_permission ('branches.delete')
+    )
+  )
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND (
+      public.has_permission ('branches.create')
+      OR public.has_permission ('branches.edit')
+      OR public.has_permission ('branches.delete')
+    )
+  );
+
+-- ---------------------------------------------------------------- BATCHES
+DROP POLICY IF EXISTS "Public reads published batches" ON public.batches;
+CREATE POLICY "Public reads published batches"
+  ON public.batches FOR SELECT
+  TO anon, authenticated
+  USING (is_active = true);
+
+DROP POLICY IF EXISTS "Batches viewers read all batches" ON public.batches;
+CREATE POLICY "Batches viewers read all batches"
+  ON public.batches FOR SELECT
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('batches.view')
+  );
+
+DROP POLICY IF EXISTS "Batches creators insert" ON public.batches;
+CREATE POLICY "Batches creators insert"
+  ON public.batches FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('batches.create')
+  );
+
+DROP POLICY IF EXISTS "Batches editors update" ON public.batches;
+CREATE POLICY "Batches editors update"
+  ON public.batches FOR UPDATE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('batches.edit')
+  )
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('batches.edit')
+  );
+
+DROP POLICY IF EXISTS "Batches deleters delete" ON public.batches;
+CREATE POLICY "Batches deleters delete"
+  ON public.batches FOR DELETE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('batches.delete')
+  );
+
+-- ---------------------------------------------------------------- SCHEDULE
+DROP POLICY IF EXISTS "Public reads active schedule" ON public.schedule_entries;
+CREATE POLICY "Public reads active schedule"
+  ON public.schedule_entries FOR SELECT
+  TO anon, authenticated
+  USING (is_active = true);
+
+DROP POLICY IF EXISTS "Schedule viewers read all entries" ON public.schedule_entries;
+CREATE POLICY "Schedule viewers read all entries"
+  ON public.schedule_entries FOR SELECT
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('schedule.view')
+  );
+
+DROP POLICY IF EXISTS "Schedule creators insert" ON public.schedule_entries;
+CREATE POLICY "Schedule creators insert"
+  ON public.schedule_entries FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('schedule.create')
+  );
+
+DROP POLICY IF EXISTS "Schedule editors update" ON public.schedule_entries;
+CREATE POLICY "Schedule editors update"
+  ON public.schedule_entries FOR UPDATE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('schedule.edit')
+  )
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('schedule.edit')
+  );
+
+DROP POLICY IF EXISTS "Schedule deleters delete" ON public.schedule_entries;
+CREATE POLICY "Schedule deleters delete"
+  ON public.schedule_entries FOR DELETE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('schedule.delete')
+  );
+
+-- ---------------------------------------------------------------- RESULTS
+DROP POLICY IF EXISTS "Public reads active results" ON public.results;
+CREATE POLICY "Public reads active results"
+  ON public.results FOR SELECT
+  TO anon, authenticated
+  USING (is_active = true);
+
+DROP POLICY IF EXISTS "Results viewers read all results" ON public.results;
+CREATE POLICY "Results viewers read all results"
+  ON public.results FOR SELECT
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('results.view')
+  );
+
+DROP POLICY IF EXISTS "Results creators insert" ON public.results;
+CREATE POLICY "Results creators insert"
+  ON public.results FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('results.create')
+  );
+
+DROP POLICY IF EXISTS "Results editors update" ON public.results;
+CREATE POLICY "Results editors update"
+  ON public.results FOR UPDATE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('results.edit')
+  )
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('results.edit')
+  );
+
+DROP POLICY IF EXISTS "Results deleters delete" ON public.results;
+CREATE POLICY "Results deleters delete"
+  ON public.results FOR DELETE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('results.delete')
+  );
+
+-- ---------------------------------------------------------------- ANNOUNCEMENTS
+DROP POLICY IF EXISTS "Public reads published announcements" ON public.announcements;
+CREATE POLICY "Public reads published announcements"
+  ON public.announcements FOR SELECT
+  TO anon, authenticated
+  USING (is_active = true);
+
+DROP POLICY IF EXISTS "Announcements viewers read all" ON public.announcements;
+CREATE POLICY "Announcements viewers read all"
+  ON public.announcements FOR SELECT
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('announcements.view')
+  );
+
+DROP POLICY IF EXISTS "Announcements creators insert" ON public.announcements;
+CREATE POLICY "Announcements creators insert"
+  ON public.announcements FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('announcements.create')
+  );
+
+DROP POLICY IF EXISTS "Announcements editors update" ON public.announcements;
+CREATE POLICY "Announcements editors update"
+  ON public.announcements FOR UPDATE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('announcements.edit')
+  )
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('announcements.edit')
+  );
+
+DROP POLICY IF EXISTS "Announcements deleters delete" ON public.announcements;
+CREATE POLICY "Announcements deleters delete"
+  ON public.announcements FOR DELETE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('announcements.delete')
+  );
+
+-- ---------------------------------------------------------------- GALLERY ALBUMS
+DROP POLICY IF EXISTS "Public reads active albums" ON public.gallery_albums;
+CREATE POLICY "Public reads active albums"
+  ON public.gallery_albums FOR SELECT
+  TO anon, authenticated
+  USING (is_active = true);
+
+DROP POLICY IF EXISTS "Gallery viewers read all albums" ON public.gallery_albums;
+CREATE POLICY "Gallery viewers read all albums"
+  ON public.gallery_albums FOR SELECT
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('gallery.view')
+  );
+
+DROP POLICY IF EXISTS "Gallery uploaders insert albums" ON public.gallery_albums;
+CREATE POLICY "Gallery uploaders insert albums"
+  ON public.gallery_albums FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('gallery.upload')
+  );
+
+DROP POLICY IF EXISTS "Gallery uploaders update albums" ON public.gallery_albums;
+CREATE POLICY "Gallery uploaders update albums"
+  ON public.gallery_albums FOR UPDATE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('gallery.upload')
+  )
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('gallery.upload')
+  );
+
+DROP POLICY IF EXISTS "Gallery deleters delete albums" ON public.gallery_albums;
+CREATE POLICY "Gallery deleters delete albums"
+  ON public.gallery_albums FOR DELETE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('gallery.delete')
+  );
+
+-- --------------------------------------------- GALLERY ITEMS (tightened)
+DROP POLICY IF EXISTS "Institute members insert gallery" ON public.gallery_items;
+CREATE POLICY "Gallery uploaders insert items"
+  ON public.gallery_items FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('gallery.upload')
+  );
+
+DROP POLICY IF EXISTS "Institute members update gallery" ON public.gallery_items;
+CREATE POLICY "Gallery uploaders update items"
+  ON public.gallery_items FOR UPDATE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('gallery.upload')
+  )
+  WITH CHECK (institute_id = public.current_institute_id ());
+
+DROP POLICY IF EXISTS "Institute members delete gallery" ON public.gallery_items;
+CREATE POLICY "Gallery deleters delete items"
+  ON public.gallery_items FOR DELETE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('gallery.delete')
+  );
+
+DROP POLICY IF EXISTS "Gallery viewers read all items" ON public.gallery_items;
+CREATE POLICY "Gallery viewers read all items"
+  ON public.gallery_items FOR SELECT
+  TO authenticated
+  USING (institute_id = public.current_institute_id ());
+
+-- --------------------------------------------- TESTIMONIALS (tightened)
+DROP POLICY IF EXISTS "Institute members insert testimonials" ON public.testimonials;
+CREATE POLICY "Testimonials creators insert"
+  ON public.testimonials FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('testimonials.create')
+  );
+
+DROP POLICY IF EXISTS "Institute members update testimonials" ON public.testimonials;
+CREATE POLICY "Testimonials editors update"
+  ON public.testimonials FOR UPDATE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('testimonials.edit')
+  )
+  WITH CHECK (institute_id = public.current_institute_id ());
+
+DROP POLICY IF EXISTS "Institute members delete testimonials" ON public.testimonials;
+CREATE POLICY "Testimonials deleters delete"
+  ON public.testimonials FOR DELETE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('testimonials.delete')
+  );
+
+DROP POLICY IF EXISTS "Testimonials viewers read all" ON public.testimonials;
+CREATE POLICY "Testimonials viewers read all"
+  ON public.testimonials FOR SELECT
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('testimonials.view')
+  );
+
+-- --------------------------------------------- FAQ (tightened)
+DROP POLICY IF EXISTS "Institute members insert faqs" ON public.faqs;
+CREATE POLICY "Faq creators insert"
+  ON public.faqs FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('faq.create')
+  );
+
+DROP POLICY IF EXISTS "Institute members update faqs" ON public.faqs;
+CREATE POLICY "Faq editors update"
+  ON public.faqs FOR UPDATE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('faq.edit')
+  )
+  WITH CHECK (institute_id = public.current_institute_id ());
+
+DROP POLICY IF EXISTS "Institute members delete faqs" ON public.faqs;
+CREATE POLICY "Faq deleters delete"
+  ON public.faqs FOR DELETE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('faq.delete')
+  );
+
+DROP POLICY IF EXISTS "Faq viewers read all" ON public.faqs;
+CREATE POLICY "Faq viewers read all"
+  ON public.faqs FOR SELECT
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('faq.view')
+  );
+
+-- ---------------------------------------------------------------- ENQUIRIES
+-- Public contact form inserts remain allowed (anon, institute id only);
+-- authenticated staff creating a lead must hold enquiries.create.
+DROP POLICY IF EXISTS "Authenticated staff insert enquiries" ON public.enquiries;
+CREATE POLICY "Authenticated staff insert enquiries"
+  ON public.enquiries FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('enquiries.create')
+  );
+
+DROP POLICY IF EXISTS "Managers read enquiries" ON public.enquiries;
+CREATE POLICY "Enquiries viewers read enquiries"
+  ON public.enquiries FOR SELECT
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('enquiries.view')
+  );
+
+DROP POLICY IF EXISTS "Managers update enquiries" ON public.enquiries;
+CREATE POLICY "Enquiries editors update enquiries"
+  ON public.enquiries FOR UPDATE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('enquiries.edit')
+  )
+  WITH CHECK (institute_id = public.current_institute_id ());
+
+DROP POLICY IF EXISTS "Enquiries deleters delete enquiries" ON public.enquiries;
+CREATE POLICY "Enquiries deleters delete enquiries"
+  ON public.enquiries FOR DELETE
+  TO authenticated
+  USING (
+    institute_id = public.current_institute_id ()
+    AND public.has_permission ('enquiries.delete')
+  );

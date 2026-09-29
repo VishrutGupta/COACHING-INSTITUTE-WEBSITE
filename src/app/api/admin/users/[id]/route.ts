@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser, handleApiError, jsonError } from "@/lib/server/api";
+import { requireUser, handleApiError, jsonError, ApiError } from "@/lib/server/api";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { PERMISSIONS } from "@/lib/constants/permissions";
+import {
+  PERMISSIONS,
+  ALL_PERMISSIONS,
+  defaultPermissionsForRole,
+} from "@/lib/constants/permissions";
 import { auditLog } from "@/lib/server/auditLog";
 import type { Role } from "@/lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -18,9 +23,57 @@ async function loadProfile(instituteId: string, targetId: string) {
   return (data as Record<string, unknown> | null) || null;
 }
 
+async function loadPermissions(admin: SupabaseClient, instituteId: string, userId: string) {
+  const { data } = await admin
+    .from("user_permissions")
+    .select("permission")
+    .eq("institute_id", instituteId)
+    .eq("user_id", userId);
+  return ((data as { permission: string }[] | null) || []).map((row) => row.permission);
+}
+
+/** Replaces the stored grant set. Owner always resolves to ALL_PERMISSIONS at read time. */
+async function replacePermissions(
+  admin: SupabaseClient,
+  instituteId: string,
+  userId: string,
+  permissions: string[]
+) {
+  const { error: deleteError } = await admin
+    .from("user_permissions")
+    .delete()
+    .eq("institute_id", instituteId)
+    .eq("user_id", userId);
+  if (deleteError) return deleteError;
+
+  if (permissions.length === 0) return null;
+
+  const { error } = await admin
+    .from("user_permissions")
+    .insert(
+      permissions.map((permission) => ({
+        user_id: userId,
+        institute_id: instituteId,
+        permission,
+      }))
+    );
+  return error;
+}
+
+function validatePermissions(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null) return null;
+  if (!Array.isArray(raw)) throw new ApiError(400, "Permissions must be an array.");
+  const invalid = raw.find(
+    (permission) => !(ALL_PERMISSIONS as string[]).includes(String(permission))
+  );
+  if (invalid) throw new ApiError(400, `Unknown permission: ${invalid}`);
+  return raw.map(String);
+}
+
 /**
  * PATCH /api/admin/users/[id]
- * Updates name, role (admin/staff only) or disabled flag.
+ * Updates name, role (admin/staff only), disabled flag and/or permissions.
+ * Role changes recompute user_permissions inside the same single audit event.
  * The owner can never be demoted, disabled or deleted.
  */
 export async function PATCH(request: NextRequest, { params }: Params) {
@@ -48,20 +101,22 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       after.full_name = update.full_name;
     }
 
+    let nextRole: Role | null = null;
     if (body.role !== undefined) {
-      const nextRole = String(body.role) as Role;
+      const requestedRole = String(body.role) as Role;
       if (target.role === "owner") {
         return jsonError("The owner account cannot be demoted.", 403);
       }
-      if (nextRole === "owner") {
+      if (requestedRole === "owner") {
         return jsonError("Accounts cannot be promoted to owner.", 403);
       }
-      if (nextRole !== "admin" && nextRole !== "staff") {
+      if (requestedRole !== "admin" && requestedRole !== "staff") {
         return jsonError("Role must be admin or staff.", 400);
       }
-      update.role = nextRole;
+      nextRole = requestedRole;
+      update.role = requestedRole;
       before.role = target.role;
-      after.role = nextRole;
+      after.role = requestedRole;
     }
 
     if (body.isDisabled !== undefined) {
@@ -73,40 +128,95 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       after.is_disabled = update.is_disabled;
     }
 
-    if (Object.keys(update).length === 0) {
+    const requestedPermissions = validatePermissions(body.permissions);
+    if (target.role === "owner" && requestedPermissions !== null) {
+      return jsonError("Owner permissions cannot be changed.", 403);
+    }
+
+    const roleChanged = Boolean(nextRole) && nextRole !== target.role;
+    const permissionsWillChange = roleChanged || requestedPermissions !== null;
+    const existingPermissions = permissionsWillChange
+      ? await loadPermissions(admin, actor.instituteId, id)
+      : [];
+
+    if (permissionsWillChange) {
+      before.permissions = existingPermissions.sort();
+    }
+
+    let nextPermissions = existingPermissions;
+    if (roleChanged && requestedPermissions === null) {
+      nextPermissions = defaultPermissionsForRole(String(nextRole));
+    } else if (requestedPermissions !== null) {
+      nextPermissions = requestedPermissions;
+    }
+    if (permissionsWillChange) {
+      after.permissions = [...nextPermissions].sort();
+    }
+
+    if (Object.keys(update).length === 0 && !permissionsWillChange) {
       return jsonError("No updatable fields supplied.", 400);
     }
 
-    const { data, error } = await admin
-      .from("profiles")
-      .update(update)
-      .eq("institute_id", actor.instituteId)
-      .eq("id", id)
-      .select("id, full_name, username, role, is_disabled")
-      .single();
+    if (Object.keys(update).length > 0) {
+      const { error } = await admin
+        .from("profiles")
+        .update(update)
+        .eq("institute_id", actor.instituteId)
+        .eq("id", id);
+      if (error) return jsonError(error.message, 500);
+    }
 
-    if (error) return jsonError(error.message, 500);
+    if (permissionsWillChange && target.role !== "owner") {
+      const permissionError = await replacePermissions(
+        admin,
+        actor.instituteId,
+        id,
+        nextPermissions
+      );
+      if (permissionError) return jsonError(permissionError.message, 500);
+    }
 
+    const action = roleChanged
+      ? "user.role_change"
+      : body.isDisabled === true
+        ? "user.disable"
+        : body.isDisabled === false
+          ? "user.enable"
+          : "user.update";
+
+    const changedFields = Object.keys(after);
     await auditLog({
       supabase: admin,
       instituteId: actor.instituteId,
       actorUserId: actor.id,
       actorUsername: actor.username,
-      action: "USER_UPDATE",
+      action,
       resourceType: "User",
       resourceId: id,
-      description: `Updated account "${target.username}"`,
-      beforeData: before,
-      afterData: after,
+      description:
+        action === "user.role_change"
+          ? `Changed role of "${target.username}" from ${target.role} to ${nextRole}`
+          : action === "user.disable"
+            ? `Disabled account "${target.username}"`
+            : action === "user.enable"
+              ? `Enabled account "${target.username}"`
+              : `Updated account "${target.username}" (${changedFields.length} field${
+                  changedFields.length === 1 ? "" : "s"
+                })`,
+      beforeData: Object.keys(before).length > 0 ? before : null,
+      afterData: Object.keys(after).length > 0 ? after : null,
     });
 
+    const profile = await loadProfile(actor.instituteId, id);
     return NextResponse.json({
       user: {
-        id: data.id,
-        fullName: data.full_name || "",
-        username: data.username || "",
-        role: data.role as Role,
-        isDisabled: data.is_disabled,
+        id,
+        fullName: String(profile?.full_name || ""),
+        username: String(profile?.username || ""),
+        role: profile?.role as Role,
+        isDisabled: Boolean(profile?.is_disabled),
+        permissions:
+          profile?.role === "owner" ? [...ALL_PERMISSIONS] : [...nextPermissions],
       },
     });
   } catch (error) {
@@ -161,7 +271,7 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
       instituteId: actor.instituteId,
       actorUserId: actor.id,
       actorUsername: actor.username,
-      action: "USER_DELETE",
+      action: "user.delete",
       resourceType: "User",
       resourceId: id,
       description: `Deleted account "${target.username}"`,
